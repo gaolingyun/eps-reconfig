@@ -47,6 +47,7 @@ def read_netlist(filename):
     c_tups = []
     b_tups = []
     t_tups = []
+    s_tups = []
     for i in range(0,len(tups)):
         line = tups[i]
         #skip empty line
@@ -72,6 +73,8 @@ def read_netlist(filename):
                 t_tups.append(line)
             elif x_name[0]=='G' or x_name[0]=='A':
                 g_tups.append(line)
+            elif x_name[0]=='S':
+                s_tups.append(line)
             #create nodes
             if x_type != 'contactor' and x_type != 'TRU':
                 G.add_node(x_num,name=x_name,type=x_type)
@@ -86,13 +89,13 @@ def read_netlist(filename):
         c_in_port = line[1]
         c_out_port = line[2]
         dummy_node_tups = []
-        node_in = searchnode(c_in_port,g_tups,b_tups,t_tups,dummy_node_tups,G)
-        node_out = searchnode(c_out_port,g_tups,b_tups,t_tups,dummy_node_tups,G)
+        node_in = searchnode(c_in_port,g_tups,b_tups,t_tups,s_tups,dummy_node_tups,G)
+        node_out = searchnode(c_out_port,g_tups,b_tups,t_tups,s_tups,dummy_node_tups,G)
         G.add_edges_from([(node_in,node_out),(node_out,node_in)],
             name=line[0],type=line[-1])
 
     #create edges w/o contactor, i.e. wire
-    #assume only TRU can have a wire connected to other components
+    #assume only TRU and sensor can have a wire connected to other components
     for i in range(0,len(t_tups)):
         t_line = t_tups[i].split(' ')
         t_in_port = t_line[1]
@@ -111,12 +114,41 @@ def read_netlist(filename):
                         G.add_edges_from([(t_out_port,b_line[-3]),
                             (b_line[-3],t_out_port)],type='wire')
                         break
+        for j in range(0,len(s_tups)):
+            s_line = s_tups[j].split(' ')
+            if t_in_port == s_line[1]:
+                G.add_edges_from([(t_out_port+'_ac',s_line[2]),
+                    (s_line[2], t_out_port+'_ac')], type = 'wire')
+                break
+            if t_out_port == s_line[1]:
+                G.add_edges_from([(t_out_port,s_line[2]),
+                    (s_line[2], t_out_port)], type = 'wire')
+                break
+    # create wire connected to sensor
+    for i in range(0, len(s_tups)):
+        s_line = s_tups[i].split(' ')
+        s_in_port = s_line[1]
+        s_out_port = s_line[2]
+        # when sensor is connected to bus
+        for j in range(0, len(b_tups)):
+            b_line = b_tups[j].split(' ')
+            for k in range(1, len(b_line)-2):
+                if s_in_port == b_line[k] or s_out_port == b_line[k]:
+                    G.add_edges_from([(s_out_port,b_line[-3]),
+                        (b_line[-3],s_out_port)], type = 'wire')
+                    break
+        # when sensor is connected to generator
+        for j in range(0, len(g_tups)):
+            g_line = g_tups[j].split(' ')
+            if s_in_port == g_line[2]:
+                G.add_edges_from([(g_line[2], s_out_port), 
+                    (s_out_port, g_line[2])], type = 'wire')
     return G
 
 #this function is only used by read_netlist
 #if two nodes share one port which is not a components,
 #define this node as this shared node + '_dummy'
-def searchnode(port,g_tups,b_tups,t_tups,dummy_node_tups,G):
+def searchnode(port,g_tups,b_tups,t_tups,s_tups,dummy_node_tups,G):
     for i in range(0,len(g_tups)):
         line = g_tups[i].split(' ')
         g_out_port = line[2]
@@ -135,6 +167,11 @@ def searchnode(port,g_tups,b_tups,t_tups,dummy_node_tups,G):
             return t_out_port+'_ac'
         if port==t_out_port:
             return t_out_port
+    for i in range(0,len(s_tups)):
+        line = s_tups[i].split(' ')
+        s_out_port = line[2]
+        if port==s_out_port:
+            return s_out_port
     for i in range(0,len(dummy_node_tups)):
         line = dummy_node_tups[i].split('_')
         dummy_node = line[0]
@@ -159,7 +196,7 @@ def init(G, uncon_comp_tups, contactor_tups):
         node_type = node_type_data[x]
         if node_type != 'dummy':
             clause = '(declare-fun ' + node_name_data[x] + ' () Bool)\n'
-            if node_type == 'generator' or node_type=='APU' or node_type == 'rectifier_dc':
+            if node_type == 'generator' or node_type == 'APU' or node_type == 'rectifier_dc':
                 uncon_comp_tups.append(node_name_data[x])
             declaration += clause
     for i in range(0, len(edges_number)):
@@ -196,11 +233,11 @@ def no_paralleling(node1, node2, G):
         print 'Error: ' + node1 + ' Not Found'
         exit()
     if num2 == 0: 
-        print 'Error: ' + node2 + ' Not Found'
+        print 'Error: ' + node2 + ' Not Found' 
         exit()
-    tups = list(nx.all_simple_paths(G, num1, num2))
+    tups = list(nx.all_simple_paths(G, num1, num2)) # find all the simple paths connecting num1 and num2
     clause = '(assert (not'
-    if len(tups)>1: clause += ' (or'
+    if len(tups)>1: clause += ' (or' # if more than one simple paths
     if tups != []:
         for k in range(0,len(tups)):
             clause += ' (and'
@@ -338,10 +375,20 @@ def rectifier_healthy(G):
     clause += '))\n'
     return clause
 
+#all the sensors are healthy
+#this function will give a general assumption on the condition
+#of sensors
+def sensor_healthy(G):
+    s_list = sensor_list(G)
+    clause = '(assert (and'
+    for s in s_list:
+        clause += ' ' + s
+    clause += '))\n'
+    return clause
+
 #equivalent the ac part and dc part of a rectifier
 #in other words, treat them as equal everywhere
 def rect_ac_dc_equ(G):
-
     all_rectifiers = rectifier_list(G)
     specs_assert = ''
 
@@ -402,13 +449,16 @@ def isolate(component, G):
         for i in range(0, len(edges_number)):
             if edges_number[i][0] == comp_num1 or edges_number[i][0] == comp_num2:
                 neighbor_idx.append(edges_number[i])
-    clause = '(assert (=> (not ' + comp2 + ')'
     contactor_tups = []
     for i in range(0, len(neighbor_idx)):
         idx = neighbor_idx[i]
         if edge_type_data[idx] == 'contactor':
             edge_name = edge_name_data[idx]
             contactor_tups.append(edge_name)
+    if len(contactor_tups) == 0:
+        clause = ''
+        return clause
+    clause = '(assert (=> (not ' + comp2 + ')'
     if len(contactor_tups) > 1:
         clause += ' (and '
     for i in range(0, len(contactor_tups)):
@@ -495,3 +545,76 @@ def rectifier_list(G):
             all_rectifiers.append(dc_name[:-3])
     return all_rectifiers
 
+# returns a tup of names of sensors
+def sensor_list(G):
+    nodes_number = G.nodes()
+    node_name_data = nx.get_node_attributes(G, 'name')
+    type_data = nx.get_node_attributes(G, 'type')
+    all_sensors = []
+    for i in range(0, nx.number_of_nodes(G)):
+        x = nodes_number[i]
+        if type_data[x] =='sensor':
+            all_sensors.append(node_name_data[x])
+    return all_sensors
+
+# returns measurements of sensor given values
+def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
+    sensor = {}
+    # Check whether there are enough states
+    for i in range (0, len(uncon_comp_tups)):
+        uncon_name = uncon_comp_tups[i]
+        if uncon_name[0] == 'T':
+            uncon_name = uncon_name[0] + uncon_name[1]
+        if states.has_key(uncon_name) == False:
+            print 'Error: ' + uncon_name + ' Not Found'
+            exit()
+    for i in range (0, len(contactor_tups)):
+        contactor_name = contactor_tups[i]
+        if states.has_key(contactor_name) == False:
+            print 'Error: ' + contactor_name + ' Not Found'
+            exit()
+
+    # Find all the sensors and generators
+    nodes_number = G.nodes()
+    node_type_data = nx.get_node_attributes(G, 'type')
+    g_list = []
+    s_list = []
+    for i in range (0, len(nodes_number)):
+        x = nodes_number[i]
+        if node_type_data[x] == 'generator':
+            g_list.append(x)
+        elif node_type_data[x] == 'sensor':
+            s_list.append(x)
+
+    # Check every sensor
+    for i in range (0, len(s_list)):
+        healthy = 1
+        target = s_list[i]
+        # Check sensor[i] with every generator
+        for j in range (0, len(g_list)):
+            source = g_list[j]
+            paths = list(nx.all_simple_paths(G, source, target))
+            # Check every path between sensor[i] and generator[j]
+            for k in range (0, len(paths)):
+                path = paths[k]
+                connect = 1
+                # Check whether this path is connected
+                for l in range (0, len(path) - 1):
+                    element = path[l]
+                    # Check every edge
+                    if G.edge[element][path[l+1]]['type'] == 'contactor':
+                        if states[G.edge[path[l]][path[l+1]]['name']] == 0:
+                            connect = 0
+                if connect == 1:
+                    # Check every node
+                    for l in range (0, len(path) - 1):
+                        element = path[l]
+                        if G.node[element]['type'] == 'generator':
+                            if states[G.node[element]['name']] == 0:
+                                healthy = 0
+                        elif G.node[element]['type'] == 'rectifier':
+                            rectifier_name = G.node[element]['name'][0] + G.node[element]['name'][1]
+                            if states[rectifier_name] == 0:
+                                healthy = 0
+        sensor[G.node[target]['name']] = healthy
+    return sensor
