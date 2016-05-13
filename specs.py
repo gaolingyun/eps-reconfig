@@ -559,62 +559,101 @@ def sensor_list(G):
 
 # returns measurements of sensor given values
 def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
-    sensor = {}
-    # Check whether there are enough states
-    for i in range (0, len(uncon_comp_tups)):
-        uncon_name = uncon_comp_tups[i]
-        if uncon_name[0] == 'T':
-            uncon_name = uncon_name[0] + uncon_name[1]
-        if states.has_key(uncon_name) == False:
-            print 'Error: ' + uncon_name + ' Not Found'
-            exit()
-    for i in range (0, len(contactor_tups)):
-        contactor_name = contactor_tups[i]
-        if states.has_key(contactor_name) == False:
-            print 'Error: ' + contactor_name + ' Not Found'
-            exit()
+	sensor = {}
+	# Check whether there are enough states
+	for i in range (0, len(uncon_comp_tups)):
+		uncon_name = uncon_comp_tups[i]
+		if uncon_name[0] == 'T':
+			uncon_name = uncon_name[0] + uncon_name[1]
+		if states.has_key(uncon_name) == False:
+			print 'Error: ' + uncon_name + ' Not Found'
+			exit()
+	for i in range (0, len(contactor_tups)):
+		contactor_name = contactor_tups[i]
+		if states.has_key(contactor_name) == False:
+			print 'Error: ' + contactor_name + ' Not Found'
+			exit()
 
-    # Find all the sensors and generators
-    nodes_number = G.nodes()
-    node_type_data = nx.get_node_attributes(G, 'type')
-    g_list = []
-    s_list = []
-    for i in range (0, len(nodes_number)):
-        x = nodes_number[i]
-        if node_type_data[x] == 'generator':
-            g_list.append(x)
-        elif node_type_data[x] == 'sensor':
-            s_list.append(x)
+	# Find all the sensors and generators
+	nodes_number = G.nodes()
+	node_type_data = nx.get_node_attributes(G, 'type')
+	g_list = []
+	s_list = []
+	for i in range (0, len(nodes_number)):
+		x = nodes_number[i]
+		if node_type_data[x] == 'generator':
+			g_list.append(x)
+		elif node_type_data[x] == 'sensor':
+			s_list.append(x)
 
-    # Check every sensor
-    for i in range (0, len(s_list)):
-        healthy = 1
-        target = s_list[i]
-        # Check sensor[i] with every generator
-        for j in range (0, len(g_list)):
-            source = g_list[j]
-            paths = list(nx.all_simple_paths(G, source, target))
-            # Check every path between sensor[i] and generator[j]
-            for k in range (0, len(paths)):
-                path = paths[k]
-                connect = 1
-                # Check whether this path is connected
-                for l in range (0, len(path) - 1):
-                    element = path[l]
-                    # Check every edge
-                    if G.edge[element][path[l+1]]['type'] == 'contactor':
-                        if states[G.edge[path[l]][path[l+1]]['name']] == 0:
-                            connect = 0
-                if connect == 1:
-                    # Check every node
-                    for l in range (0, len(path) - 1):
-                        element = path[l]
-                        if G.node[element]['type'] == 'generator':
-                            if states[G.node[element]['name']] == 0:
-                                healthy = 0
-                        elif G.node[element]['type'] == 'rectifier':
-                            rectifier_name = G.node[element]['name'][0] + G.node[element]['name'][1]
-                            if states[rectifier_name] == 0:
-                                healthy = 0
-        sensor[G.node[target]['name']] = healthy
-    return sensor
+	# Check every sensor
+	for i in range (0, len(s_list)):
+		healthy = 1
+		target = s_list[i]
+		# Check sensor[i] with every generator
+		for j in range (0, len(g_list)):
+			source = g_list[j]
+			paths = list(nx.all_simple_paths(G, source, target))
+			# Check every path between sensor[i] and generator[j]
+			for k in range (0, len(paths)):
+				path = paths[k]
+				connect = 1
+				# Check whether this path is connected
+				for l in range (0, len(path) - 1):
+					element = path[l]
+					# Check every edge
+					if G.edge[element][path[l+1]]['type'] == 'contactor':
+						if states[G.edge[path[l]][path[l+1]]['name']] == 0:
+							connect = 0
+				# if there is a live path
+				if connect == 1:
+					# Check every node
+					for l in range (0, len(path) - 1):
+						element = path[l]
+						if G.node[element]['type'] == 'generator':
+							if states[G.node[element]['name']] == 0:
+								healthy = 0
+						elif G.node[element]['type'] == 'rectifier':
+							rectifier_name = ''
+							for m in range (0, len(G.node[element]['name'])-3):
+								rectifier_name += G.node[element]['name'][m]
+							if states[rectifier_name] == 0:
+								healthy = 0
+		sensor[G.node[target]['name']] = healthy
+	return sensor
+
+# create a database of all compatible states with given sensor readings and controllable contactors
+def compatible_states(G, sensor_readings, con_cont, file_name):
+	uncon_comp_tups = []
+	contactor_tups = []
+	declaration = init(G, uncon_comp_tups, contactor_tups)
+
+	elements = []
+	initial_state = {}
+	initial_state = con_cont.copy()
+	for i in range (0, len(uncon_comp_tups)):
+		name = ''
+		if uncon_comp_tups[i][0] == 'T':
+			for j in range (0, len(uncon_comp_tups[i])-3):
+				name += uncon_comp_tups[i][j]
+		else:
+			name = uncon_comp_tups[i]
+		elements.append(name)
+	for i in range (0, len(contactor_tups)):
+		if con_cont.has_key(contactor_tups[i]) == 0:
+			elements.append(contactor_tups[i])
+
+	with open(file_name, 'w') as csvfile:
+		fieldnames = elements + list(con_cont)
+		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+		writer.writeheader()
+		num_state = pow(2, len(elements))
+		for i in range (0, num_state):
+			state = initial_state
+			value = format(i, '0' + str(len(elements)) + 'b')
+			for j in range (0, len(value)):
+				state[elements[j]] = int(value[j])
+			test_readings = sensor_measurement(G, uncon_comp_tups, contactor_tups, state)
+			if test_readings == sensor_readings:
+				writer.writerow(state)
+	return G
