@@ -615,7 +615,10 @@ def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
 						if G.node[element]['type'] == 'generator':
 							if states[G.node[element]['name']] == 0:
 								healthy = 0
-						elif G.node[element]['type'] == 'rectifier':
+						elif G.node[element]['type'] == 'APU':
+							if states[G.node[element]['name']] == 0:
+								healthy = 0
+						elif G.node[element]['type'] == 'rectifier_dc' or G.node[element]['type'] == 'rectifier_ac':
 							rectifier_name = ''
 							for m in range (0, len(G.node[element]['name'])-3):
 								rectifier_name += G.node[element]['name'][m]
