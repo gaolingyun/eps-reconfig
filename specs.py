@@ -564,7 +564,9 @@ def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
 	for i in range (0, len(uncon_comp_tups)):
 		uncon_name = uncon_comp_tups[i]
 		if uncon_name[0] == 'T':
-			uncon_name = uncon_name[0] + uncon_name[1]
+			uncon_name = ''
+			for j in range (0, len(uncon_comp_tups[i])-3):
+				uncon_name += uncon_comp_tups[i][j]
 		if states.has_key(uncon_name) == False:
 			print 'Error: ' + uncon_name + ' Not Found'
 			exit()
