@@ -634,7 +634,6 @@ def compatible_states(G, sensor_readings, con_cont, file_name):
 	declaration = init(G, uncon_comp_tups, contactor_tups)
 
 	elements = []
-	initial_state = {}
 	initial_state = con_cont.copy()
 	for i in range (0, len(uncon_comp_tups)):
 		name = ''
