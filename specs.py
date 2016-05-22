@@ -661,7 +661,7 @@ def compatible_states(G, sensor_readings, con_cont):
 			compatible_list.append(state.copy())
 	return compatible_list
 
-# create the database of all the states
+# create the database of all the states, this is used to create the csv file
 def generate_database(G, sensors, con_conts):
 	compatible_database = []
 	sensor_dict = {}
@@ -699,7 +699,7 @@ def generate_database_in_csv(database, write_file_name):
 
 	return 0
 
-# read database from a csv file
+# read the whole database from a csv file
 def get_compatible_states_from_database(read_file_name, sensors, con_conts):
 	compatible_database = []
 	compatible_states = []
@@ -733,3 +733,37 @@ def get_compatible_states_from_database(read_file_name, sensors, con_conts):
 		compatible_database.append(compatible_states)
 
 	return compatible_database
+
+# read a set of compatible states from database
+def get_compatible_states_from_database(read_file_name, sensor_readings, con_cont):
+	compatible_list = []
+	sensors = sensor_readings.keys()
+	contactors = con_cont.keys()
+
+	with open(read_file_name) as csvfile:
+		reader = csv.DictReader(csvfile)
+		for row in reader:
+			choose_it = True
+			for i in range (0, len(row)):
+				number = int(row[list(row)[i]])
+				row[list(row)[i]] = number
+			if len(sensor_readings) > len(con_cont):
+				for i in range (0, len(sensors)):
+					if row[sensors[i]] != sensor_readings[sensors[i]]:
+						choose_it = False
+				if choose_it == True:
+					for i in range (0, len(contactors)):
+						if row[contactors[i]] != con_cont[contactors[i]]:
+							choose_it = False
+			else:
+				for i in range (0, len(contactors)):
+					if row[contactors[i]] != con_cont[contactors[i]]:
+						choose_it = False
+				if choose_it == True:
+					for i in range (0, len(sensors)):
+						if row[sensors[i]] != sensor_readings[sensors[i]]:
+							choose_it = False
+			if choose_it == True:
+				compatible_list.append(row)
+
+	return compatible_list
