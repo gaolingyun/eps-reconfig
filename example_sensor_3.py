@@ -19,18 +19,18 @@ C_c = {'C1': 1, 'C3': 1, 'C10': 0, 'C9': 1, 'C4': 0, 'C6': 1, 'C8': 0, 'C5': 1}
 S_readings = {'S1': 0, 'S2': 1, 'S3': 0, 'S4': 1}
 compatible_list = compatible_states(G, S_readings, C_c)
 
-# test time
+# generate database
 sensors = ['S1', 'S2', 'S3', 'S4']
 con_conts = ['C1', 'C3', 'C4', 'C6', 'C2', 'C9']
+result = generate_database(G, sensors, con_conts)
+generate_database_in_csv(result, 'database3.csv')
 
 start1 = time.time()
-t1 = generate_database(G, sensors, con_conts)
+compatible_states(G, S_readings, C_c)
 end1 = time.time()
 print end1 - start1
 
-generate_database_in_csv(t1, 'database.csv')
-
 start2 = time.time()
-t2 = get_compatible_states_from_database('database.csv', sensors, con_conts)
+get_compatible_states_from_database('database3.csv', S_readings, C_c)
 end2 = time.time()
 print end2 - start2
