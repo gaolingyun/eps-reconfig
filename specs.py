@@ -660,7 +660,42 @@ def compatible_states(G, sensor_readings, con_cont):
 			state.update(sensor_readings)
 			compatible_list.append(state.copy())
 	return compatible_list
+	
+# create the database of all the states, and create the csv file
+def generate_database_csv(G, write_file_name):
+	uncon_comp_tups = []
+	contactor_tups = []
+	declaration = init(G, uncon_comp_tups, contactor_tups)
 
+	with open(write_file_name, 'w') as csvfile:
+		for i in range(0, pow(2, len(uncon_comp_tups) + len(contactor_tups))):
+			index = 0
+			states = {}
+			states_value = format(i, '0' + str(len(uncon_comp_tups) + len(contactor_tups)) + 'b')
+			for j in uncon_comp_tups:
+				if j[0] == 'T':
+					name = ''
+					for k in range(0, len(j) - 3):
+						name += j[k]
+					states[name] = int(states_value[index])
+				else:
+					states[j] = int(states_value[index])
+				index += 1
+			for j in contactor_tups:
+				states[j] = int(states_value[index])
+				index += 1
+			states_copy = states.copy()
+			sensor_readings = sensor_measurement(G, uncon_comp_tups, contactor_tups, states_copy)
+			states.update(sensor_readings)
+			if i == 0:
+				fieldnames = list(states)
+				writer = csv.DictWriter(csvfile, fieldnames = fieldnames)
+				writer.writeheader()
+			writer.writerow(states)
+
+	return 0
+
+# This is another way to generate the database in csv
 # create the database of all the states, this is used to create the csv file
 def generate_database(G, sensors, con_conts):
 	compatible_database = []
@@ -698,41 +733,6 @@ def generate_database_in_csv(database, write_file_name):
 				writer.writerow(row)
 
 	return 0
-
-# read the whole database from a csv file
-def get_compatible_states_from_database(read_file_name, sensors, con_conts):
-	compatible_database = []
-	compatible_states = []
-	previous_sensors_and_action = {}
-	present_sensors_and_action = {}
-	with open(read_file_name) as csvfile:
-		reader = csv.DictReader(csvfile)
-		for row in reader:
-			for i in range (0, len(row)):
-				number = int(row[list(row)[i]])
-				row[list(row)[i]] = number
-			for i in range (0, len(sensors)):
-				present_sensors_and_action[sensors[i]] = row[sensors[i]]
-			for i in range (0, len(con_conts)):
-				present_sensors_and_action[con_conts[i]] = row[con_conts[i]]
-
-			if len(compatible_states) == 0:
-				compatible_states.append(row)
-			else:
-				if present_sensors_and_action == previous_sensors_and_action:
-					compatible_states.append(row)
-				else:
-					compatible_database.append(compatible_states)
-					compatible_states = []
-					compatible_states.append(row)
-
-			for i in range (0, len(sensors)):
-				previous_sensors_and_action[sensors[i]] = row[sensors[i]]
-			for i in range (0, len(con_conts)):
-				previous_sensors_and_action[con_conts[i]] = row[con_conts[i]]
-		compatible_database.append(compatible_states)
-
-	return compatible_database
 
 # read a set of compatible states from database
 def get_compatible_states_from_database(read_file_name, sensor_readings, con_cont):
