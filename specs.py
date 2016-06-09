@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import networkx as nx
 import subprocess
 import csv
+import ast
 
 #read in a netlist file and create a corresponding
 #network graph
@@ -577,9 +578,21 @@ def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
 			print 'Error: ' + contactor_name + ' Not Found'
 			exit()
 
+	# Delete all the edges if open and the nodes connected to them
+	# Do not delete sensors
+	H = G.copy()
+	edges_number = H.edges()
+	edge_name_data = nx.get_edge_attributes(H, 'name')
+	for i in edges_number:
+		name = ''
+		if edge_name_data.has_key(i) == True:
+			name = edge_name_data[i]
+			if states[name] == 0:
+				H.remove_edge(i[0], i[1])
+	
 	# Find all the sensors and generators
-	nodes_number = G.nodes()
-	node_type_data = nx.get_node_attributes(G, 'type')
+	nodes_number = H.nodes()
+	node_type_data = nx.get_node_attributes(H, 'type')
 	g_list = []
 	s_list = []
 	for i in range (0, len(nodes_number)):
@@ -596,7 +609,7 @@ def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
 		# Check sensor[i] with every generator
 		for j in range (0, len(g_list)):
 			source = g_list[j]
-			paths = list(nx.all_simple_paths(G, source, target))
+			paths = list(nx.all_simple_paths(H, source, target))
 			# Check every path between sensor[i] and generator[j]
 			for k in range (0, len(paths)):
 				path = paths[k]
@@ -605,27 +618,27 @@ def sensor_measurement(G, uncon_comp_tups, contactor_tups, states):
 				for l in range (0, len(path) - 1):
 					element = path[l]
 					# Check every edge
-					if G.edge[element][path[l+1]]['type'] == 'contactor':
-						if states[G.edge[path[l]][path[l+1]]['name']] == 0:
+					if H.edge[element][path[l+1]]['type'] == 'contactor':
+						if states[H.edge[path[l]][path[l+1]]['name']] == 0:
 							connect = 0
 				# if there is a live path
 				if connect == 1:
 					# Check every node
 					for l in range (0, len(path) - 1):
 						element = path[l]
-						if G.node[element]['type'] == 'generator':
-							if states[G.node[element]['name']] == 0:
+						if H.node[element]['type'] == 'generator':
+							if states[H.node[element]['name']] == 0:
 								healthy = 0
-						elif G.node[element]['type'] == 'APU':
-							if states[G.node[element]['name']] == 0:
+						elif H.node[element]['type'] == 'APU':
+							if states[H.node[element]['name']] == 0:
 								healthy = 0
-						elif G.node[element]['type'] == 'rectifier_dc' or G.node[element]['type'] == 'rectifier_ac':
+						elif H.node[element]['type'] == 'rectifier_dc' or H.node[element]['type'] == 'rectifier_ac':
 							rectifier_name = ''
-							for m in range (0, len(G.node[element]['name'])-3):
-								rectifier_name += G.node[element]['name'][m]
+							for m in range (0, len(H.node[element]['name'])-3):
+								rectifier_name += H.node[element]['name'][m]
 							if states[rectifier_name] == 0:
 								healthy = 0
-		sensor[G.node[target]['name']] = healthy
+		sensor[H.node[target]['name']] = healthy
 	return sensor
 
 # return a list of compatible states with given sensor readings and controllable contactors
@@ -660,7 +673,39 @@ def compatible_states(G, sensor_readings, con_cont):
 			state.update(sensor_readings)
 			compatible_list.append(state.copy())
 	return compatible_list
-	
+
+# return a list of compatible states with given sensor readings and controllable contactors
+def compatible_states_without_sensors(G, sensor_readings, con_cont):
+	uncon_comp_tups = []
+	contactor_tups = []
+	declaration = init(G, uncon_comp_tups, contactor_tups)
+
+	compatible_list = []
+	elements = []
+	initial_state = con_cont.copy()
+	for i in range (0, len(uncon_comp_tups)):
+		name = ''
+		if uncon_comp_tups[i][0] == 'T':
+			for j in range (0, len(uncon_comp_tups[i])-3):
+				name += uncon_comp_tups[i][j]
+		else:
+			name = uncon_comp_tups[i]
+		elements.append(name)
+	for i in range (0, len(contactor_tups)):
+		if con_cont.has_key(contactor_tups[i]) == 0:
+			elements.append(contactor_tups[i])
+
+	num_state = pow(2, len(elements))
+	for i in range (0, num_state):
+		state = initial_state
+		value = format(i, '0' + str(len(elements)) + 'b')
+		for j in range (0, len(value)):
+				state[elements[j]] = int(value[j])
+		test_readings = sensor_measurement(G, uncon_comp_tups, contactor_tups, state)
+		if test_readings == sensor_readings:
+			compatible_list.append(state.copy())
+	return compatible_list
+
 # create the database of all the states, and create the csv file
 def generate_database_csv(G, write_file_name):
 	uncon_comp_tups = []
@@ -695,24 +740,73 @@ def generate_database_csv(G, write_file_name):
 
 	return 0
 
-# This is another way to generate the database in csv
+# read a set of compatible states from database
+def get_compatible_states_from_database(read_file_name, sensor_readings, con_cont):
+	compatible_list = []
+	sensors = sensor_readings.keys()
+	contactors = con_cont.keys()
+
+	with open(read_file_name) as csvfile:
+		reader = csv.DictReader(csvfile)
+		for row in reader:
+			choose_it = True
+			for i in range (0, len(row)):
+				number = int(row[list(row)[i]])
+				row[list(row)[i]] = number
+			if len(sensor_readings) > len(con_cont):
+				for i in range (0, len(sensors)):
+					if row[sensors[i]] != sensor_readings[sensors[i]]:
+						choose_it = False
+						break
+				if choose_it == True:
+					for i in range (0, len(contactors)):
+						if row[contactors[i]] != con_cont[contactors[i]]:
+							choose_it = False
+							break
+			else:
+				for i in range (0, len(contactors)):
+					if row[contactors[i]] != con_cont[contactors[i]]:
+						choose_it = False
+						break
+				if choose_it == True:
+					for i in range (0, len(sensors)):
+						if row[sensors[i]] != sensor_readings[sensors[i]]:
+							choose_it = False
+							break
+			if choose_it == True:
+				compatible_list.append(row)
+
+	return compatible_list
+
+# Functions below are for the greedy algorithm
+# This function generates the database in the sequence according to sensor readings
 # create the database of all the states, this is used to create the csv file
-def generate_database(G, sensors, con_conts):
+def generate_database(G, sensors, con_conts, write_file_name):
 	compatible_database = []
 	sensor_dict = {}
 	cc_dict = {}
 
-	for i in range (0, pow(2, len(sensors))):
-		sensors_value = format(i, '0' + str(len(sensors)) + 'b')
-		for j in range (0, len(sensors)):
-			sensor_dict[sensors[j]] = int(sensors_value[j])
-		for j in range (0, pow(2, len(con_conts))):
-			cont_value = format(j, '0' + str(len(con_conts)) + 'b')
-			for k in range (0, len(con_conts)):
-				cc_dict[con_conts[k]] = int(cont_value[k])
-			temp_list = compatible_states(G, sensor_dict, cc_dict)
-			if (len(temp_list) > 0):
-				compatible_database.append(temp_list)
+	with open(write_file_name, 'wb') as csvfile:
+		spamwriter = csv.writer(csvfile, delimiter = ',', quoting = csv.QUOTE_MINIMAL)
+		for i in range (0, pow(2, len(sensors))):
+			sensors_value = format(i, '0' + str(len(sensors)) + 'b')
+			for j in range (0, len(sensors)):
+				sensor_dict[sensors[j]] = int(sensors_value[j])
+			for j in range (0, pow(2, len(con_conts))):
+				cont_value = format(j, '0' + str(len(con_conts)) + 'b')
+				for k in range (0, len(con_conts)):
+					cc_dict[con_conts[k]] = int(cont_value[k])
+				temp_list = compatible_states(G, sensor_dict, cc_dict)
+				for k in temp_list:
+					for l in sensor_dict:
+						k.pop(l)
+					for l in cc_dict:
+						k.pop(l)
+				if (len(temp_list) > 0):
+					row = [sensor_dict, cc_dict]
+					row.extend(temp_list)
+					spamwriter.writerow(row)
+					compatible_database.append(temp_list)
 
 	return compatible_database
 
@@ -734,36 +828,16 @@ def generate_database_in_csv(database, write_file_name):
 
 	return 0
 
-# read a set of compatible states from database
-def get_compatible_states_from_database(read_file_name, sensor_readings, con_cont):
+# read the compatible states from the database
+def read_from_database(read_file_name, sensor_readings, con_cont):
 	compatible_list = []
-	sensors = sensor_readings.keys()
-	contactors = con_cont.keys()
 
-	with open(read_file_name) as csvfile:
-		reader = csv.DictReader(csvfile)
-		for row in reader:
-			choose_it = True
-			for i in range (0, len(row)):
-				number = int(row[list(row)[i]])
-				row[list(row)[i]] = number
-			if len(sensor_readings) > len(con_cont):
-				for i in range (0, len(sensors)):
-					if row[sensors[i]] != sensor_readings[sensors[i]]:
-						choose_it = False
-				if choose_it == True:
-					for i in range (0, len(contactors)):
-						if row[contactors[i]] != con_cont[contactors[i]]:
-							choose_it = False
-			else:
-				for i in range (0, len(contactors)):
-					if row[contactors[i]] != con_cont[contactors[i]]:
-						choose_it = False
-				if choose_it == True:
-					for i in range (0, len(sensors)):
-						if row[sensors[i]] != sensor_readings[sensors[i]]:
-							choose_it = False
-			if choose_it == True:
-				compatible_list.append(row)
+	with open(read_file_name, 'rb') as f:
+	    reader = csv.reader(f)
+	    for row in reader:
+	    	if ast.literal_eval(row[0]) == sensor_readings:
+	    		if ast.literal_eval(row[1]) == con_cont:
+	    			for i in range(2, len(row)):
+	    				compatible_list.append(ast.literal_eval(row[i]))
 
 	return compatible_list
