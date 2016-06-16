@@ -12,6 +12,7 @@ def find_best_action(sensor_readings, compatible_states, G, read_file_name, acti
 
 	# for all actions
 	for i in range(0, pow(2, len(initial_action))):
+		# print 'i: ' + str(i)
 		action_value = format(i, '0' + str(len(initial_action)) + 'b')
 		for j in range(0, len(initial_action)):
 			action[list(initial_action)[j]] = int(action_value[j])
