@@ -7,7 +7,7 @@ G = read_netlist(filename)
 uncon_comp_tups = []
 contactor_tups = []
 declaration = init(G, uncon_comp_tups, contactor_tups)
-actual_state = {'G2': 1, 'G1': 1, 'T2': 0, 'T1': 0, 'C2': 0, 'C5': 1}
+actual_state = {'G2': 1, 'G1': 1, 'T2': 0, 'T1': 0, 'C2': 0, 'C5': 1} # This is only used to set the len(actual_state)
 
 for j in range(0, pow(2, len(actual_state))):
 	# set the actual state
@@ -16,7 +16,7 @@ for j in range(0, pow(2, len(actual_state))):
 		actual_state[list(actual_state)[i]] = int(state_value[i])
 
 	# test the greedy strategy
-	# set the actual state and initial action
+	# set the and initial action
 	# get the initial sensor readings
 	read_file_name = 'database1.csv'
 	action = {'C1': 1, 'C3': 1, 'C4': 1, 'C6': 1}
