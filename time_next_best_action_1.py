@@ -47,11 +47,12 @@ for j in range(0, pow(2, len(actual_state))):
 		if len(action_list) == 6: break
 
 		# find the best action to perform
+		start = time.time()
 		action = find_best_action(sensor_readings, compatible_states, G, read_file_name, action_list)
+		end = time.time()
+		print end - start
 		states.update(action)
 		action_list.append(action.copy())
-
-	print len(compatible_states)
 
 	'''
 	print 'All possible states are:'
