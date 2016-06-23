@@ -97,7 +97,7 @@ def read_netlist(filename):
 			name=line[0],type=line[-1])
 
 	#create edges w/o contactor, i.e. wire
-	#assume only TRU and sensor can have a wire connected to other components
+	#assume only TRU, sensor, and generator can have a wire connected to other components
 	for i in range(0,len(t_tups)):
 		t_line = t_tups[i].split(' ')
 		t_in_port = t_line[1]
@@ -118,14 +118,20 @@ def read_netlist(filename):
 						break
 		for j in range(0,len(s_tups)):
 			s_line = s_tups[j].split(' ')
-			if t_in_port == s_line[1]:
+			if t_in_port == s_line[2]:
 				G.add_edges_from([(t_out_port+'_ac',s_line[2]),
 					(s_line[2], t_out_port+'_ac')], type = 'wire')
-				break
 			if t_out_port == s_line[1]:
 				G.add_edges_from([(t_out_port,s_line[2]),
 					(s_line[2], t_out_port)], type = 'wire')
-				break
+		for j in range(0, len(g_tups)):
+			g_line = g_tups[j].split(' ')
+			if t_in_port == g_line[2]:
+				G.add_edges_from([(t_out_port+'_ac',g_line[2]),
+					(g_line[2], t_out_port+'_ac')], type = 'wire')
+			if t_out_port == g_line[1]:
+				G.add_edges_from([(t_out_port,g_line[2]),
+					(g_line[2], t_out_port)], type = 'wire')
 	# create wire connected to sensor
 	for i in range(0, len(s_tups)):
 		s_line = s_tups[i].split(' ')
@@ -142,9 +148,22 @@ def read_netlist(filename):
 		# when sensor is connected to generator
 		for j in range(0, len(g_tups)):
 			g_line = g_tups[j].split(' ')
-			if s_in_port == g_line[2]:
+			if s_in_port == g_line[2] or s_out_port == g_line[1]:
 				G.add_edges_from([(g_line[2], s_out_port), 
 					(s_out_port, g_line[2])], type = 'wire')
+	# create wire connected to generator
+	for i in range(0, len(g_tups)):
+		g_line = g_tups[i].split(' ')
+		g_in_port = g_line[1]
+		g_out_port = g_line[2]
+		# when generator is connected to bus
+		for j in range(0, len(b_tups)):
+			b_line = b_tups[j].split(' ')
+			for k in range(1, len(b_line)-2):
+				if g_in_port == b_line[k] or g_out_port == b_line[k]:
+					G.add_edges_from([(g_out_port, b_line[-3]),
+						(b_line[-3], g_out_port)], type = 'wire')
+					break
 	return G
 
 #this function is only used by read_netlist
