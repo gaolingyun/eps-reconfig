@@ -1,0 +1,22 @@
+# simple example 3
+
+G1 0 1 generator
+G2 0 2 generator
+G3 0 3 generator
+G4 0 4 generator
+S1 1 5 sensor
+S2 2 6 sensor
+S3 11 12 sensor
+S4 18 19 sensor
+B1 7 9 15 bus AC
+B2 8 10 11 bus AC
+B3 3 12 13 bus AC
+B4 4 14 16 bus AC
+C1 5 7 contactor
+C2 6 8 contactor
+C5 9 10 contactor
+C6 13 14 contactor
+C7 15 17 contactor
+C9 19 20 contactor
+T1 17 18 TRU
+T2 16 20 TRU
