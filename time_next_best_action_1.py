@@ -7,7 +7,13 @@ G = read_netlist(filename)
 uncon_comp_tups = []
 contactor_tups = []
 declaration = init(G, uncon_comp_tups, contactor_tups)
-actual_state = {'G2': 1, 'G1': 1, 'T2': 0, 'T1': 0, 'C2': 0, 'C5': 1} # This is only used to set the len(actual_state)
+actual_state = {'G2': 1, 'G1': 1, 'T2': 0, 'T1': 0, 'C2': 0, 'C5': 1}
+
+'''
+sensors = ['S1', 'S2']
+con_conts = ['C1', 'C3', 'C4', 'C6']
+result = generate_database(G, sensors, con_conts, 'database1.csv')
+'''
 
 for j in range(0, pow(2, len(actual_state))):
 	# set the actual state
@@ -16,7 +22,7 @@ for j in range(0, pow(2, len(actual_state))):
 		actual_state[list(actual_state)[i]] = int(state_value[i])
 
 	# test the greedy strategy
-	# set the and initial action
+	# set the actual state and initial action
 	# get the initial sensor readings
 	read_file_name = 'database1.csv'
 	action = {'C1': 1, 'C3': 1, 'C4': 1, 'C6': 1}
@@ -47,15 +53,8 @@ for j in range(0, pow(2, len(actual_state))):
 		if len(action_list) == 6: break
 
 		# find the best action to perform
-		start = time.time()
 		action = find_best_action(sensor_readings, compatible_states, G, read_file_name, action_list)
-		end = time.time()
-		print end - start
 		states.update(action)
 		action_list.append(action.copy())
 
-	'''
-	print 'All possible states are:'
-	for i in compatible_states:
-		print i
-	'''
+	print len(compatible_states)
