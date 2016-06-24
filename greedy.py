@@ -34,3 +34,36 @@ def find_best_action(sensor_readings, compatible_states, G, read_file_name, acti
 				smallest_num_compatible_states = len(compatible_intersection)
 
 	return best_action
+
+def build_tree(G, read_file_name, compatible_states, action_list):
+	action = action_list[0].copy()
+	sensors = sensor_list(G)
+	sensor_readings = {}
+	factor = -1
+	for i in range(0, pow(2, len(action))):
+		action_value = format(i, '0' + str(len(action)) + 'b')
+		for j in range(0, len(action)):
+			action[list(action)[j]] = int(action_value[j])
+		if action_list.count(action) > 0: continue
+
+		current_factor = 0
+		for j in range(0, pow(2, len(sensors))):
+			sensor_value = format(j, '0' + str(len(sensors)) + 'b')
+			for k in range(0, len(sensors)):
+				sensor_readings[sensors[k]] = int(sensor_value[k])
+			count = 0
+			compatible_states_candidate = read_from_database(read_file_name, sensor_readings, action)
+			for k in compatible_states_candidate:
+				if compatible_states.count(k) > 0:
+					count += 1
+			current_factor += float(count*count)/len(compatible_states)
+
+		if factor == -1:
+			factor = current_factor
+			best_action = action.copy()
+		else:
+			if current_factor < factor:
+				factor = current_factor
+				best_action = action.copy()
+
+	return best_action
