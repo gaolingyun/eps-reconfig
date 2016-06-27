@@ -8,16 +8,19 @@ def find_best_action(sensor_readings, compatible_states, G, read_file_name, acti
 	best_action = {}
 	action = {}
 	initial_action = action_list[0]
-	smallest_num_compatible_states = len(compatible_states)
+	smallest_max = len(compatible_states)
 
 	# for all actions
+	#print 'test action:'
 	for i in range(0, pow(2, len(initial_action))):
 		# print 'i: ' + str(i)
 		action_value = format(i, '0' + str(len(initial_action)) + 'b')
 		for j in range(0, len(initial_action)):
 			action[list(initial_action)[j]] = int(action_value[j])
 		if action_list.count(action) > 0: continue
+		#print action
 
+		max_num_compatible_states = 0
 		# for all compatible states
 		for j in range(0, len(compatible_states)):
 			# find potential sensor readings
@@ -29,9 +32,13 @@ def find_best_action(sensor_readings, compatible_states, G, read_file_name, acti
 			for k in compatible_states:
 				if compatible_states_candidate.count(k) > 0:
 					compatible_intersection.append(k)
-			if len(compatible_intersection) <= smallest_num_compatible_states:
-				best_action = action.copy()
-				smallest_num_compatible_states = len(compatible_intersection)
+			if len(compatible_intersection) > max_num_compatible_states:
+				max_num_compatible_states = len(compatible_intersection)
+		#print max_num_compatible_states
+
+		if max_num_compatible_states < smallest_max:
+			best_action = action.copy()
+			smallest_max = max_num_compatible_states
 
 	return best_action
 
@@ -40,12 +47,14 @@ def build_tree(G, read_file_name, compatible_states, action_list):
 	sensors = sensor_list(G)
 	sensor_readings = {}
 	factor = -1
+	#print 'test action: '
 	for i in range(0, pow(2, len(action))):
 		action_value = format(i, '0' + str(len(action)) + 'b')
 		for j in range(0, len(action)):
 			action[list(action)[j]] = int(action_value[j])
 		if action_list.count(action) > 0: continue
 
+		#print action
 		current_factor = 0
 		for j in range(0, pow(2, len(sensors))):
 			sensor_value = format(j, '0' + str(len(sensors)) + 'b')
@@ -58,6 +67,7 @@ def build_tree(G, read_file_name, compatible_states, action_list):
 					count += 1
 			current_factor += float(count*count)/len(compatible_states)
 
+		#print current_factor
 		if factor == -1:
 			factor = current_factor
 			best_action = action.copy()
@@ -65,5 +75,7 @@ def build_tree(G, read_file_name, compatible_states, action_list):
 			if current_factor < factor:
 				factor = current_factor
 				best_action = action.copy()
+
+	if factor == len(compatible_states): best_action = {}
 
 	return best_action
