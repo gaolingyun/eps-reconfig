@@ -58,6 +58,37 @@ def build_tree(G, read_file_name, compatible_states, action_list, fail_sensors):
 		if action_list.count(action) > 0: continue
 
 		current_factor = 0
+
+		for j in range(0, pow(2, len(sensors))):
+			compatible_states_candidate = []
+			sensor_value = format(j, '0' + str(len(sensors)) + 'b')
+			for k in range(0, len(sensors)):
+				sensor_readings[sensors[k]] = int(sensor_value[k])
+
+			for k in range(0, len(compatible_states)):
+				condition = format(k, '0' + str(len(fail_sensors)) + 'b')
+				temp_readings = sensor_readings.copy()
+				for l in range(0, len(fail_sensors)):
+					if int(condition[l]) == 0:
+						if temp_readings[fail_sensors[l]] == 1:
+							temp_readings[fail_sensors[l]] = 0
+						else:
+							temp_readings[fail_sensors[l]] = 1
+				compatible_states_candidate.append(read_from_database(read_file_name, temp_readings, action))
+			count = 0
+			for k in range(0, len(compatible_states)):
+				for l in compatible_states[k]:
+					if compatible_states_candidate[k].count(l) > 0:
+						count += 1
+			if len(fail_sensors) == 0:
+				current_factor += float(count*count)/len(compatible_states[0])
+			else:
+				if current_factor < count:
+					current_factor = count
+		
+
+
+		'''
 		for j in range(0, pow(2, len(healthy_sensors))):
 			sensor_value = format(j, '0' + str(len(healthy_sensors)) + 'b')
 			for k in range(0, len(healthy_sensors)):
@@ -78,8 +109,8 @@ def build_tree(G, read_file_name, compatible_states, action_list, fail_sensors):
 			else:
 				if current_factor < count:
 					current_factor = count
+		'''
 
-		#print current_factor
 		if factor == -1:
 			factor = current_factor
 			best_action = action.copy()
@@ -87,7 +118,7 @@ def build_tree(G, read_file_name, compatible_states, action_list, fail_sensors):
 			if current_factor < factor:
 				factor = current_factor
 				best_action = action.copy()
-
+	'''
 	if len(fail_sensors) == 0:
 		if factor == len(compatible_states[0]): best_action = {}
 	else:
@@ -95,5 +126,7 @@ def build_tree(G, read_file_name, compatible_states, action_list, fail_sensors):
 		for i in compatible_states:
 			total_states += len(i)
 		if total_states == factor: best_action = {}
+	'''
+	
 
 	return best_action
