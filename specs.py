@@ -860,3 +860,53 @@ def read_from_database(read_file_name, sensor_readings, con_cont):
 	    				compatible_list.append(ast.literal_eval(row[i]))
 
 	return compatible_list
+
+def assign_false_values(a_dict, a_list):
+	for i in a_list:
+		if a_dict[i] == 0:
+			a_dict[i] = 1
+		else:
+			a_dict[i] = 0
+
+	return a_dict
+
+def sensors_not_connected_with_generators(G, con_conts):
+	known_sensors = []
+
+	# delete all edges with controllable contactors
+	H = G.copy()
+	edges_number = H.edges()
+	edge_name_data = nx.get_edge_attributes(H, 'name')
+	for i in edges_number:
+		name = ''
+		if edge_name_data.has_key(i) == True:
+			name = edge_name_data[i]
+			if con_conts.count(name) > 0:
+				H.remove_edge(i[0], i[1])
+	
+	# Find all the sensors and generators
+	nodes_number = H.nodes()
+	node_type_data = nx.get_node_attributes(H, 'type')
+	g_list = []
+	s_list = []
+	for i in range (0, len(nodes_number)):
+		x = nodes_number[i]
+		if node_type_data[x] == 'generator':
+			g_list.append(x)
+		elif node_type_data[x] == 'sensor':
+			s_list.append(x)
+
+	# Check every sensor
+	for i in range (0, len(s_list)):
+		target = s_list[i]
+		flag = 0
+		# Check sensor[i] with every generator
+		for j in range (0, len(g_list)):
+			source = g_list[j]
+			paths = list(nx.all_simple_paths(H, source, target))
+			if len(paths) > 0:
+				flag = 1
+		if flag == 0:
+			known_sensors.append(H.node[target]['name'])
+
+	return known_sensors
